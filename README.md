@@ -1,0 +1,1 @@
+Select the file you want to edit from browse, and click start. It should create a table with all the entries in it, which will auto increment and decrement the pointers depending on changes in entry size.
