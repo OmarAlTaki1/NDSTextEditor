@@ -10,6 +10,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using DragonBallKaiUBDLib;
 
 namespace NDSTextEditor
 {
@@ -182,21 +183,28 @@ namespace NDSTextEditor
         }
         private void StartFilling(object sender, RoutedEventArgs e)
         {
-            string firstValue = FirstValueTextBox.Text;
             if(filePath == "")
             {
                 MessageBox.Show("Please select a file first.");
                 return;
-            }
-            else if(firstValue == "")
-            {
-                MessageBox.Show("Please enter the first value.");
             }
             else
             {
                 StreamReader sr = new StreamReader(filePath, Encoding.GetEncoding("shift-jis"));
                 string text = sr.ReadToEnd();
                 sr.Close();
+
+                byte[] bytes = File.ReadAllBytes(filePath);
+
+                int offset = IO.ReadInt(bytes, 0xC);
+
+                int offset2 = IO.ReadInt(bytes, 0x14);
+
+                byte[] firstInBytes = bytes.Skip(offset).Take((offset2-offset)-1).ToArray();
+
+                Encoding shiftJIS = Encoding.GetEncoding("shift-jis");
+
+                string firstValue = shiftJIS.GetString(firstInBytes);
 
                 FileStream fs = new FileStream(filePath, FileMode.Open);
 
@@ -209,8 +217,6 @@ namespace NDSTextEditor
                 List<String> reps = strings.GetRange(0, wantedRange-1);
 
                 string rep = string.Join("\0", reps);
-
-                Encoding shiftJIS = Encoding.GetEncoding("shift-jis");
 
                 int actualNumOfReps = (shiftJIS.GetByteCount(rep)+2)/8;
 
