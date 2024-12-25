@@ -26,6 +26,7 @@ namespace NDSTextEditor
         private string filePath="";
         private List<Row> rows = new List<Row>();
         private string header = "";
+        byte[] headerBytes;
 
         public MainWindow()
         {
@@ -132,6 +133,105 @@ namespace NDSTextEditor
             }*/
         }
 
+        private void AddTextBoxPairsDynamicallySBT()
+        {
+            foreach (Row r in rows)
+            {
+                // Create a horizontal stack panel to hold the pair of text boxes
+                StackPanel pairPanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Margin = new Thickness(5)
+                };
+
+                // Create the index text box
+                TextBox indexTextBox = new TextBox
+                {
+                    Width = 75,
+                    Margin = new Thickness(0, 0, 10, 0),
+                    Text = r.Pointer,
+                    IsReadOnly = true
+                };
+
+                //TextBox rowindexTextBox = new TextBox
+                //{
+                //    Width = 75,
+                //    Margin = new Thickness(0, 0, 10, 0),
+                //    Text = r.Index,
+                //    IsReadOnly = true
+                //};
+
+                // Create the text display text box
+                TextBox displayTextBox = new TextBox
+                {
+                    Width = 600,
+                    Text = r.Text,
+                    AcceptsReturn = true,
+                    TextWrapping = TextWrapping.Wrap
+                };
+                displayTextBox.LostFocus += DisplayTextBox_LostFocus;
+
+                // Store the original text
+                originalTexts[displayTextBox] = displayTextBox.Text;
+
+                // Add the text boxes to the pair panel
+                pairPanel.Children.Add(indexTextBox);
+                //pairPanel.Children.Add(rowindexTextBox);
+                pairPanel.Children.Add(displayTextBox);
+
+                // Add the pair panel to the main container
+                TextBoxContainer.Children.Add(pairPanel);
+
+                // Keep track of the text boxes
+                indexTextBoxes.Add(indexTextBox);
+                //rowindexTextBoxes.Add(rowindexTextBox);
+                contentTextBoxes.Add(displayTextBox);
+            }
+
+            /*for (int i = 1; i <= 1389; i++)
+            {
+                // Create a horizontal stack panel to hold the pair of text boxes
+                StackPanel pairPanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Margin = new Thickness(5)
+                };
+
+                // Create the index text box
+                TextBox indexTextBox = new TextBox
+                {
+                    Width = 150,
+                    Margin = new Thickness(0, 0, 10, 0),
+                    Text = i.ToString(),
+                    IsReadOnly = true
+                };
+
+                // Create the text display text box
+                TextBox displayTextBox = new TextBox
+                {
+                    Width = 600,
+                    Text = $"Text for index {i}",
+                    AcceptsReturn = true,
+                    TextWrapping = TextWrapping.Wrap
+                };
+                displayTextBox.LostFocus += DisplayTextBox_LostFocus;
+
+                // Store the original text
+                originalTexts[displayTextBox] = displayTextBox.Text;
+
+                // Add the text boxes to the pair panel
+                pairPanel.Children.Add(indexTextBox);
+                pairPanel.Children.Add(displayTextBox);
+
+                // Add the pair panel to the main container
+                TextBoxContainer.Children.Add(pairPanel);
+
+                // Keep track of the text boxes
+                indexTextBoxes.Add(indexTextBox);
+                contentTextBoxes.Add(displayTextBox);
+            }*/
+        }
+
         private void DisplayTextBox_LostFocus(object sender, RoutedEventArgs e)
         {
             if (sender is TextBox changedTextBox)
@@ -174,7 +274,7 @@ namespace NDSTextEditor
         private void BrowseButton_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog openFileDialog = new OpenFileDialog();
-            openFileDialog.Filter = "All files (*.*)|*.*";
+            openFileDialog.Filter = "All files (*.*)|*.*|MSG files (*.msg)|*.msg|SBT files (*.sbt)|*.sbt";
             if (openFileDialog.ShowDialog() == true)
             {
                 FilePathTextBox.Text = openFileDialog.FileName;
@@ -190,77 +290,163 @@ namespace NDSTextEditor
             }
             else
             {
-                StreamReader sr = new StreamReader(filePath, Encoding.GetEncoding("shift-jis"));
-                string text = sr.ReadToEnd();
-                sr.Close();
-
-                byte[] bytes = File.ReadAllBytes(filePath);
-
-                int offset = IO.ReadInt(bytes, 0xC);
-
-                int offset2 = IO.ReadInt(bytes, 0x14);
-
-                byte[] firstInBytes = bytes.Skip(offset).Take((offset2-offset)-1).ToArray();
-
-                Encoding shiftJIS = Encoding.GetEncoding("shift-jis");
-
-                string firstValue = shiftJIS.GetString(firstInBytes);
-
-                FileStream fs = new FileStream(filePath, FileMode.Open);
-
-                List<String> strings = text.Split(new char[] { '\0' }, StringSplitOptions.None).ToList();
-
-                header = strings[0]+'\0';
-
-                int wantedRange = strings.IndexOf(firstValue);
-
-                List<String> reps = strings.GetRange(0, wantedRange-1);
-
-                string rep = string.Join("\0", reps);
-
-                int actualNumOfReps = (shiftJIS.GetByteCount(rep)+2)/8;
-
-                strings.RemoveRange(0, wantedRange);
-
-                byte[] buffer = new byte[4];
-
-                // Skip 4 bytes
-                fs.Read(buffer, 0, buffer.Length);
-
-                for (int i = 0; i < actualNumOfReps; i++)
+                if(System.IO.Path.GetExtension(filePath) == ".msg")
                 {
-                    Row row = new Row();
+                    StreamReader sr = new StreamReader(filePath, Encoding.GetEncoding("shift-jis"));
+                    string text = sr.ReadToEnd();
+                    sr.Close();
 
-                    // Read 4 bytes for the Pointer
+                    byte[] bytes = File.ReadAllBytes(filePath);
+
+                    int offset = IO.ReadInt(bytes, 0xC);
+
+                    int offset2 = IO.ReadInt(bytes, 0x14);
+
+                    byte[] firstInBytes = bytes.Skip(offset).Take((offset2 - offset) - 1).ToArray();
+
+                    Encoding shiftJIS = Encoding.GetEncoding("shift-jis");
+
+                    string firstValue = shiftJIS.GetString(firstInBytes);
+
+                    FileStream fs = new FileStream(filePath, FileMode.Open);
+
+                    List<String> strings = text.Split(new char[] { '\0' }, StringSplitOptions.None).ToList();
+
+                    header = strings[0] + '\0';
+
+                    int wantedRange = strings.IndexOf(firstValue);
+
+                    List<String> reps = strings.GetRange(0, wantedRange - 1);
+
+                    string rep = string.Join("\0", reps);
+
+                    int actualNumOfReps = (shiftJIS.GetByteCount(rep) + 2) / 8;
+
+                    strings.RemoveRange(0, wantedRange);
+
+                    byte[] buffer = new byte[4];
+
+                    // Skip 4 bytes
                     fs.Read(buffer, 0, buffer.Length);
-                    row.Pointer = BitConverter.ToString(buffer).Replace("-", "");
 
-                    // Read next 4 bytes for the Index
-                    fs.Read(buffer, 0, buffer.Length);
-                    row.Index = BitConverter.ToString(buffer).Replace("-", "");
+                    for (int i = 0; i < actualNumOfReps; i++)
+                    {
+                        Row row = new Row();
 
-                    rows.Add(row);
-                }
+                        // Read 4 bytes for the Pointer
+                        fs.Read(buffer, 0, buffer.Length);
+                        row.Pointer = BitConverter.ToString(buffer).Replace("-", "");
 
-                fs.Close();
+                        // Read next 4 bytes for the Index
+                        fs.Read(buffer, 0, buffer.Length);
+                        row.Index = BitConverter.ToString(buffer).Replace("-", "");
 
-                int counter = 0;
+                        rows.Add(row);
+                    }
 
-                foreach (Row r in rows)
+                    fs.Close();
+
+                    int counter = 0;
+
+                    foreach (Row r in rows)
+                    {
+                        if (counter == 0)
+                        {
+                            counter++;
+                            continue;
+                        }
+                        if (r.Pointer != "00000000")
+                        {
+                            r.Text = strings[counter - 1];
+                            counter++;
+                        }
+                    }
+                    rows[rows.Count - 1].Index = "";
+                    AddTextBoxPairsDynamically();
+                }else if(System.IO.Path.GetExtension(filePath) == ".sbt")
                 {
-                    if (counter == 0)
+                    StreamReader sr = new StreamReader(filePath, Encoding.GetEncoding("shift-jis"));
+                    string text = sr.ReadToEnd();
+                    sr.Close();
+
+                    byte[] bytes = File.ReadAllBytes(filePath);
+
+                    headerBytes = bytes.Take(0x33D4).ToArray();
+
+                    header = string.Join("", Encoding.GetEncoding("shift-jis").GetString(headerBytes));
+
+                    int offset = IO.ReadInt(bytes, 0x33D4) + 0x67A0;
+
+                    int offset2 = IO.ReadInt(bytes, 0x33D8) + 0x67A0;
+
+                    byte[] firstInBytes = bytes.Skip(offset).Take((offset2 - offset) - 1).ToArray();
+
+                    Encoding shiftJIS = Encoding.GetEncoding("shift-jis");
+
+                    string firstValue = shiftJIS.GetString(firstInBytes);
+
+                    FileStream fs = new FileStream(filePath, FileMode.Open);
+
+                    List<String> strings = text.Split(new char[] { '\0' }, StringSplitOptions.None).ToList();
+
+                    int wantedRange = strings.IndexOf(firstValue);
+
+                    List<String> reps = strings.GetRange(0, wantedRange - 1);
+
+                    string rep = string.Join("\0", reps);
+
+                    int actualNumOfReps = (shiftJIS.GetByteCount(rep) + 2) / 4;
+
+                    strings.RemoveRange(0, wantedRange);
+
+                    byte[] buffer = new byte[4];
+
+                    // Skip 4 bytes
+                    for(int i = 0; i < 0xCF4; i++)
                     {
-                        counter++;
-                        continue;
+                        fs.Read(buffer,0,buffer.Length);
                     }
-                    if (r.Pointer != "00000000")
+                    fs.Read(buffer, 0, buffer.Length);
+
+                    for (int i = 0; i < 0xCF3; i++)
                     {
-                        r.Text = strings[counter - 1];
-                        counter++;
+                        Row row = new Row();
+
+                        // Read 4 bytes for the Pointer
+                        fs.Read(buffer, 0, buffer.Length);
+                        row.Pointer = BitConverter.ToString(buffer).Replace("-", "");
+
+                        //// Read next 4 bytes for the Index
+                        //fs.Read(buffer, 0, buffer.Length);
+                        //row.Index = BitConverter.ToString(buffer).Replace("-", "");
+                        row.Index = "";
+
+                        rows.Add(row);
                     }
+
+                    fs.Close();
+
+                    int counter = 0;
+
+                    foreach (Row r in rows)
+                    {
+                        //if (counter == 0)
+                        //{
+                        //    counter++;
+                        //    continue;
+                        //}
+                        r.Text = strings[counter];
+                        counter++;
+                        //if (r.Pointer != "00000000")
+                        //{
+                        //    r.Text = strings[counter - 1];
+                        //    counter++;
+                        //}
+                    }
+                    rows[rows.Count - 1].Index = "";
+                    AddTextBoxPairsDynamicallySBT();
                 }
-                rows[rows.Count - 1].Index = "";
-                AddTextBoxPairsDynamically();
+                
             }
         }
 
@@ -351,89 +537,182 @@ namespace NDSTextEditor
                 fileContent += r.Text + '\0';
             }*/
             // Create and configure the SaveFileDialog
-            SaveFileDialog saveFileDialog = new SaveFileDialog
+            if(System.IO.Path.GetExtension(filePath) == ".msg")
             {
-                Filter = "MSG files (*.msg)|*.msg|All Files (*.*)|*.*", // Filter for file types
-                Title = "Save a Text File"
-            };
-
-            // Show the SaveFileDialog and check if the user clicked "Save"
-            if (saveFileDialog.ShowDialog() == true)
-            {
-                // Get the file path from the dialog
-                string filePath = saveFileDialog.FileName;
-
-                File.AppendAllText(filePath, header);
-
-                foreach (Row r in rows)
+                SaveFileDialog saveFileDialog = new SaveFileDialog
                 {
-                    byte[] bytesPointer = HexStringToBytes(r.Pointer);
-                    byte[] bytesIndex = HexStringToBytes(r.Index);
-                    try
+                    Filter = "MSG files (*.msg)|*.msg|All Files (*.*)|*.*", // Filter for file types
+                    Title = "Save a Text File"
+                };
+
+                // Show the SaveFileDialog and check if the user clicked "Save"
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    // Get the file path from the dialog
+                    string filePath = saveFileDialog.FileName;
+
+                    File.AppendAllText(filePath, header);
+
+                    foreach (Row r in rows)
                     {
-                        // Create and write to the file
-                        using (FileStream fs = new FileStream(filePath, FileMode.Append, FileAccess.Write))
+                        byte[] bytesPointer = HexStringToBytes(r.Pointer);
+                        byte[] bytesIndex = HexStringToBytes(r.Index);
+                        try
                         {
-                            fs.Write(bytesPointer, 0, bytesPointer.Length);
-                            if(r.Index != "")
+                            // Create and write to the file
+                            using (FileStream fs = new FileStream(filePath, FileMode.Append, FileAccess.Write))
                             {
-                                fs.Write(bytesIndex, 0, bytesIndex.Length);
+                                fs.Write(bytesPointer, 0, bytesPointer.Length);
+                                if (r.Index != "")
+                                {
+                                    fs.Write(bytesIndex, 0, bytesIndex.Length);
+                                }
                             }
                         }
-                    }
-                    catch (IOException ex)
-                    {
-                        // Handle potential IO exceptions
-                        MessageBox.Show($"An error occurred while saving the file: {ex.Message}");
-                    }
-
-                    /*string pointer = Encoding.GetEncoding("shift_jis").GetString(bytesPointer);
-                    string index = Encoding.GetEncoding("shift_jis").GetString(bytesIndex);*/
-
-                    //fileContent += pointer + index;
-                }
-
-                foreach (Row r in rows)
-                {
-                    try
-                    {
-                        if(r.Text == null || r.Text == "")
+                        catch (IOException ex)
                         {
-                            continue;
+                            // Handle potential IO exceptions
+                            MessageBox.Show($"An error occurred while saving the file: {ex.Message}");
                         }
-                        // Create and write to the file
-                        using (var writer = new StreamWriter(filePath, true, Encoding.GetEncoding("shift-jis")))
+
+                        /*string pointer = Encoding.GetEncoding("shift_jis").GetString(bytesPointer);
+                        string index = Encoding.GetEncoding("shift_jis").GetString(bytesIndex);*/
+
+                        //fileContent += pointer + index;
+                    }
+
+                    foreach (Row r in rows)
+                    {
+                        try
                         {
-                            writer.Write(r.Text.Replace("\r\n","\n"));
-                            writer.Write("\0");
-                        }/*
+                            if (r.Text == null || r.Text == "")
+                            {
+                                continue;
+                            }
+                            // Create and write to the file
+                            using (var writer = new StreamWriter(filePath, true, Encoding.GetEncoding("shift-jis")))
+                            {
+                                writer.Write(r.Text.Replace("\r\n", "\n"));
+                                writer.Write("\0");
+                            }/*
                         File.AppendAllText(filePath, r.Text);
                         File.AppendAllText(filePath, "\0");*/
+                        }
+                        catch (IOException ex)
+                        {
+                            // Handle potential IO exceptions
+                            MessageBox.Show($"An error occurred while saving the file: {ex.Message}");
+                        }
+
+                        //fileContent += r.Text + '\0';
+                    }
+
+
+                    MessageBox.Show("File saved successfully!");
+
+                    /*try
+                    {
+                        // Create and write to the file
+                        File.WriteAllText(filePath, fileContent);
+                        MessageBox.Show("File saved successfully!");
                     }
                     catch (IOException ex)
                     {
                         // Handle potential IO exceptions
                         MessageBox.Show($"An error occurred while saving the file: {ex.Message}");
+                    }*/
+                }
+            } else if(System.IO.Path.GetExtension(filePath) == ".sbt")
+            {
+                SaveFileDialog saveFileDialog = new SaveFileDialog
+                {
+                    Filter = "SBT files (*.sbt)|*.sbt|All Files (*.*)|*.*", // Filter for file types
+                    Title = "Save a Text File"
+                };
+
+                // Show the SaveFileDialog and check if the user clicked "Save"
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    // Get the file path from the dialog
+                    string filePath = saveFileDialog.FileName;
+
+                    File.WriteAllBytes(filePath, headerBytes);
+
+                    foreach (Row r in rows)
+                    {
+                        byte[] bytesPointer = HexStringToBytes(r.Pointer);
+                        byte[] bytesIndex = HexStringToBytes(r.Index);
+                        try
+                        {
+                            // Create and write to the file
+                            using (FileStream fs = new FileStream(filePath, FileMode.Append, FileAccess.Write))
+                            {
+                                fs.Write(bytesPointer, 0, bytesPointer.Length);
+                                //if (r.Index != "")
+                                //{
+                                //    fs.Write(bytesIndex, 0, bytesIndex.Length);
+                                //}
+                            }
+                        }
+                        catch (IOException ex)
+                        {
+                            // Handle potential IO exceptions
+                            MessageBox.Show($"An error occurred while saving the file: {ex.Message}");
+                        }
+
+                        /*string pointer = Encoding.GetEncoding("shift_jis").GetString(bytesPointer);
+                        string index = Encoding.GetEncoding("shift_jis").GetString(bytesIndex);*/
+
+                        //fileContent += pointer + index;
                     }
 
-                    //fileContent += r.Text + '\0';
-                }
+                    foreach (Row r in rows)
+                    {
+                        try
+                        {
+                            if (r.Text == null /*|| r.Text == ""*/)
+                            {
+                                continue;
+                            }
+                            // Create and write to the file
+                            using (var writer = new StreamWriter(filePath, true, Encoding.GetEncoding("shift-jis")))
+                            {
+                                writer.Write(r.Text.Replace("\r\n", "\n"));
+                                writer.Write("\0");
+                            }/*
+                        File.AppendAllText(filePath, r.Text);
+                        File.AppendAllText(filePath, "\0");*/
+                        }
+                        catch (IOException ex)
+                        {
+                            // Handle potential IO exceptions
+                            MessageBox.Show($"An error occurred while saving the file: {ex.Message}");
+                        }
 
+                        //using (var writer = new StreamWriter(filePath + ".csv", true, Encoding.GetEncoding("shift-jis")))
+                        //{
+                        //    writer.Write(r.Text.Replace("\r\n", "\n").Replace("\n"," ") + "\n");
+                        //}
 
-                MessageBox.Show("File saved successfully!");
+                        //fileContent += r.Text + '\0';
+                    }
 
-                /*try
-                {
-                    // Create and write to the file
-                    File.WriteAllText(filePath, fileContent);
                     MessageBox.Show("File saved successfully!");
+
+                    /*try
+                    {
+                        // Create and write to the file
+                        File.WriteAllText(filePath, fileContent);
+                        MessageBox.Show("File saved successfully!");
+                    }
+                    catch (IOException ex)
+                    {
+                        // Handle potential IO exceptions
+                        MessageBox.Show($"An error occurred while saving the file: {ex.Message}");
+                    }*/
                 }
-                catch (IOException ex)
-                {
-                    // Handle potential IO exceptions
-                    MessageBox.Show($"An error occurred while saving the file: {ex.Message}");
-                }*/
             }
+            
         }
 
         static byte[] HexStringToBytes(string hex)
